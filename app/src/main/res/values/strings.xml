@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Caderneta Virtual</string>
+    <string name="recording_channel_name">Gravação de trajeto</string>
+    <string name="recording_channel_desc">Notificação persistente enquanto um trajeto está sendo gravado.</string>
+</resources>

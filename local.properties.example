@@ -1,0 +1,4 @@
+# Local config — not committed. Point sdk.dir at your Android SDK, and
+# optionally set the Maps key here instead of gradle.properties.
+sdk.dir=/Users/YOUR_USER/Library/Android/sdk
+# MAPS_API_KEY=AIza...
