@@ -36,6 +36,7 @@ class TripRepository(private val db: AppDatabase) {
 
     suspend fun startTrip(trip: Trip): Long = trips.insert(trip)
     suspend fun updateTrip(trip: Trip) = trips.update(trip)
+    suspend fun deleteTrip(id: Long) = trips.deleteTrip(id)
     suspend fun setOdometer(id: Long, odometer: Int?) = trips.setOdometer(id, odometer)
     suspend fun applyBatchOdometer(ids: List<Long>, initial: Int) =
         trips.applyBatchOdometer(ids, initial)

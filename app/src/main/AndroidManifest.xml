@@ -20,6 +20,8 @@
     <!-- ── Foreground service (location type, Android 14 requires the typed perm) ── -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Lets the service promote to foreground from a background Bluetooth event -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Restart the receiver after reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -50,7 +52,7 @@
         <service
             android:name=".service.TripRecordingService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location|connectedDevice" />
 
         <!-- Listens for Bluetooth ACL connect / disconnect on linked vehicles -->
         <receiver

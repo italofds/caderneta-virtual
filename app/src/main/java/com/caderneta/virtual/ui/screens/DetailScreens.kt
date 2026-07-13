@@ -1,8 +1,8 @@
 package com.caderneta.virtual.ui.screens
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,8 +24,8 @@ import androidx.compose.ui.unit.dp
 import com.caderneta.virtual.data.db.TrackPoint
 import com.caderneta.virtual.data.db.Trip
 import com.caderneta.virtual.ui.MainViewModel
-import com.caderneta.virtual.ui.theme.colorForDevice
 import com.caderneta.virtual.ui.TripDetailData
+import com.caderneta.virtual.ui.theme.colorForDevice
 import com.caderneta.virtual.util.Fmt
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng

@@ -48,14 +48,14 @@ class BluetoothConnectionReceiver : BroadcastReceiver() {
                             putExtra(TripRecordingService.EXTRA_ADDRESS, linked.address)
                             putExtra(TripRecordingService.EXTRA_NAME, linked.name)
                         }
-                        ContextCompat.startForegroundService(context, start)
+                        runCatching { ContextCompat.startForegroundService(context, start) }
                     }
                     BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
                         val stop = Intent(context, TripRecordingService::class.java).apply {
                             this.action = TripRecordingService.ACTION_STOP
                             putExtra(TripRecordingService.EXTRA_ADDRESS, linked.address)
                         }
-                        ContextCompat.startForegroundService(context, stop)
+                        runCatching { ContextCompat.startForegroundService(context, stop) }
                     }
                 }
             } finally {

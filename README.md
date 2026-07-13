@@ -7,17 +7,23 @@ Google Maps. `minSdk 26`, `targetSdk 34` — testado para dispositivos modernos
 
 ## Como funciona
 
-1. **Onboarding** — lista os dispositivos Bluetooth já pareados no celular; o
-   usuário marca quais correspondem a veículos a monitorar.
+1. **Onboarding** — só aparece quando **nenhum** dispositivo está vinculado.
+   Lista os dispositivos Bluetooth já pareados no celular; o usuário marca quais
+   correspondem a veículos a monitorar. Nas próximas aberturas o app vai direto
+   para a lista (a decisão vem do banco, não da 1ª emissão do fluxo, que é vazia).
 2. **Início automático** — `BluetoothConnectionReceiver` (registrado no
    manifesto, funciona mesmo com o app fechado) escuta `ACL_CONNECTED`. Se o
-   dispositivo for um veículo vinculado, sobe o `TripRecordingService` em
-   *foreground* (tipo `location`), grava data/hora e o ponto de origem.
+   dispositivo for um veículo vinculado, sobe o `TripRecordingService`. Para
+   contornar as restrições do Android 12+ (um serviço `location` não pode ser
+   criado em background), o serviço entra em *foreground* primeiro como
+   `connectedDevice` — permitido a partir de um evento de conexão — e só então
+   adiciona o tipo `location`. Grava data/hora e o ponto de origem.
 3. **Em background** — o serviço acumula a rota via GPS (FusedLocation), somando
    a distância e persistindo pontos no banco. Uma notificação persistente
-   mostra a quilometragem ao vivo.
+   (imediata) mostra a quilometragem ao vivo.
 4. **Fim automático** — em `ACL_DISCONNECTED` o serviço fecha o trajeto com o
    horário, o destino (geocodificado) e o total de km, e então se encerra.
+   Trajetos com **menos de 0,1 km** são descartados (não viram registro).
 5. **Lista** — todos os trajetos, filtráveis por veículo e, opcionalmente,
    agrupados por dia (início do 1º, fim do último e soma de km do dia).
 6. **Detalhe** — mapa com a rota percorrida + linha do tempo origem/destino.

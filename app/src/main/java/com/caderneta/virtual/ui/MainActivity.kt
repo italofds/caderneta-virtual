@@ -12,7 +12,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -24,7 +23,9 @@ import com.caderneta.virtual.data.db.Trip
 import com.caderneta.virtual.ui.screens.*
 import com.caderneta.virtual.ui.theme.CadernetaTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.flow.Flow
 
 /** Bundle passed to the detail screen so it can observe one trip + its route. */
@@ -50,17 +51,28 @@ class MainActivity : ComponentActivity() {
                 val permState = rememberMultiplePermissionsState(perms)
                 LaunchedEffect(Unit) { if (!permState.allPermissionsGranted) permState.launchMultiplePermissionRequest() }
 
+                // Background location must be requested on its own screen, AFTER the
+                // foreground location grant — otherwise the system silently denies it,
+                // and without it the service cannot track once the app is backgrounded.
+                val bgLocation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                    rememberPermissionState(Manifest.permission.ACCESS_BACKGROUND_LOCATION) else null
+                LaunchedEffect(permState.allPermissionsGranted) {
+                    if (permState.allPermissionsGranted && bgLocation != null && !bgLocation.status.isGranted) {
+                        bgLocation.launchPermissionRequest()
+                    }
+                }
+
                 // Bonded devices from the OS (needs BLUETOOTH_CONNECT on 12+).
                 val bonded = remember { mutableStateOf(emptyList<LinkedDevice>()) }
                 LaunchedEffect(permState.allPermissionsGranted) {
                     bonded.value = readBondedDevices(this@MainActivity)
                 }
 
-                val devices by vm.devices.collectAsStateWithLifecycle()
+                // Decide onboarding ONCE, from persisted state — not from the devices
+                // flow, whose initial emission is an empty list and would otherwise force
+                // onboarding on every launch even when a vehicle is already linked.
                 var onboardingDone by remember { mutableStateOf<Boolean?>(null) }
-                LaunchedEffect(devices) {
-                    if (onboardingDone == null) onboardingDone = devices.any { it.enabled }
-                }
+                LaunchedEffect(Unit) { onboardingDone = repo.hasLinkedDevices() }
 
                 val nav = rememberNavController()
                 if (onboardingDone == false) {

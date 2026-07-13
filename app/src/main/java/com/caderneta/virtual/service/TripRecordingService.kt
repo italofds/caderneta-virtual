@@ -88,13 +88,21 @@ class TripRecordingService : LifecycleService() {
     private fun handleStart(address: String, name: String) {
         if (address.isBlank()) { stopSelf(); return }
         deviceName = name
-        startAsForeground(NOTIF_ID, buildNotification(name, "Iniciando gravação…"))
+        // Promote to foreground immediately with the connectedDevice type only. That
+        // type has no "while-in-use" restriction, so it is allowed to start even
+        // though the service was launched from the background by the Bluetooth
+        // connection broadcast (a location-typed start would be blocked here).
+        startAsForeground(buildNotification(name, "Iniciando gravação…"), withLocation = false)
 
         if (!hasLocationPermission()) {
             // Cannot track without location; keep a trip record with origin unknown.
             lifecycleScope.launch { openTrip(address, name, null) }
             return
         }
+
+        // Now that we're already a foreground service, add the location type so GPS
+        // keeps streaming while the app is in the background.
+        startAsForeground(buildNotification(name, "Gravando trajeto"), withLocation = true)
 
         lifecycleScope.launch {
             // If a stale active trip exists (e.g. app killed mid-trip), close it first.
@@ -165,18 +173,25 @@ class TripRecordingService : LifecycleService() {
                 fused.removeLocationUpdates(locationCallback)
                 val trip = if (activeTripId >= 0) repo.observeTripSnapshot(activeTripId) else repo.getActiveTrip()
                 if (trip != null) {
-                    val dest = if (hasLocationPermission()) lastKnownLocation() else null
-                    val endLat = dest?.latitude ?: lastLat ?: trip.startLat
-                    val endLng = dest?.longitude ?: lastLng ?: trip.startLng
-                    repo.updateTrip(
-                        trip.copy(
-                            endTime = System.currentTimeMillis(),
-                            endLat = endLat,
-                            endLng = endLng,
-                            endAddress = reverseGeocode(endLat, endLng),
-                            distanceMeters = accumMeters.takeIf { it > 0 } ?: trip.distanceMeters,
+                    val finalMeters = accumMeters.takeIf { it > 0 } ?: trip.distanceMeters
+                    if (finalMeters < MIN_DISTANCE_METERS) {
+                        // Trajeto abaixo de 0,1 km: descarta em vez de registrar
+                        // (pontos do trajeto caem em cascata pela FK).
+                        repo.deleteTrip(trip.id)
+                    } else {
+                        val dest = if (hasLocationPermission()) lastKnownLocation() else null
+                        val endLat = dest?.latitude ?: lastLat ?: trip.startLat
+                        val endLng = dest?.longitude ?: lastLng ?: trip.startLng
+                        repo.updateTrip(
+                            trip.copy(
+                                endTime = System.currentTimeMillis(),
+                                endLat = endLat,
+                                endLng = endLng,
+                                endAddress = reverseGeocode(endLat, endLng),
+                                distanceMeters = finalMeters,
+                            )
                         )
-                    )
+                    }
                 }
             } finally {
                 activeTripId = -1L
@@ -222,6 +237,7 @@ class TripRecordingService : LifecycleService() {
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
             .setContentIntent(open)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
     }
@@ -243,12 +259,20 @@ class TripRecordingService : LifecycleService() {
     }
 
     // Start in foreground with the correct service type on Android 10+/14.
-    private fun startAsForeground(id: Int, notif: Notification) {
-        androidx.core.app.ServiceCompat.startForeground(
-            this, id, notif,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
-        )
+    // Starts with connectedDevice (safe from background); pass withLocation=true
+    // once running to add the location type for background GPS tracking.
+    private fun startAsForeground(notif: Notification, withLocation: Boolean) {
+        var type = 0
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        if (withLocation && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+            type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        try {
+            androidx.core.app.ServiceCompat.startForeground(this, NOTIF_ID, notif, type)
+        } catch (_: Exception) {
+            // Background start blocked (e.g. battery optimization on). The trip is
+            // still persisted; the user must allow unrestricted background use.
+        }
     }
 
     companion object {
@@ -258,5 +282,7 @@ class TripRecordingService : LifecycleService() {
         const val EXTRA_NAME = "name"
         private const val CHANNEL_ID = "trip_recording"
         private const val NOTIF_ID = 42
+        /** Trajetos com distância inferior a isto (0,1 km) são descartados. */
+        private const val MIN_DISTANCE_METERS = 100.0
     }
 }

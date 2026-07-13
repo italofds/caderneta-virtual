@@ -58,6 +58,9 @@ interface TripDao {
     @Query("UPDATE trips SET odometerStart = :odo WHERE id = :id")
     suspend fun setOdometer(id: Long, odo: Int?)
 
+    @Query("DELETE FROM trips WHERE id = :id")
+    suspend fun deleteTrip(id: Long)
+
     // ── Track points ──
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPoint(point: TrackPoint)
