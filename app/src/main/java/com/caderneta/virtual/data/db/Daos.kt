@@ -61,6 +61,9 @@ interface TripDao {
     @Query("DELETE FROM trips WHERE id = :id")
     suspend fun deleteTrip(id: Long)
 
+    @Query("DELETE FROM trips WHERE id IN (:ids)")
+    suspend fun deleteTrips(ids: List<Long>)
+
     // ── Track points ──
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPoint(point: TrackPoint)

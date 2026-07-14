@@ -46,10 +46,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setFilter(address: String?) { _filter.value = address }
     fun toggleGrouped() { _grouped.value = !_grouped.value }
 
-    /** Trips honoring the current device filter, newest first. */
+    /** Trips honoring the current device filter, oldest first (so the list reads
+     *  top-to-bottom chronologically and the newest entries land at the bottom). */
     val trips: StateFlow<List<Trip>> = combine(repo.observeTrips(), _filter) { list, f ->
         (if (f == null) list else list.filter { it.deviceAddress == f })
             .filter { !it.isActive }
+            .sortedBy { it.startTime }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Grouped view: same day + same vehicle collapsed into one bucket. */
@@ -58,7 +60,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val ascending = list.sortedBy { it.startTime }
             val buckets = LinkedHashMap<String, MutableList<Trip>>()
             ascending.forEach { t ->
-                val key = "${t.deviceAddress}@${t.startTime / 86_400_000}"
+                val key = "${t.deviceAddress}@${com.caderneta.virtual.util.Fmt.dayKey(t.startTime)}"
                 buckets.getOrPut(key) { mutableListOf() }.add(t)
             }
             buckets.values.map { g ->
@@ -67,7 +69,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     device = g.first().deviceName,
                     trips = g.sortedBy { it.startTime },
                 )
-            }.sortedByDescending { it.first.startTime }
+            }.sortedBy { it.first.startTime }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -94,6 +96,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val orderedIds = trips.value.filter { it.id in _selection.value }
             .sortedBy { it.startTime }.map { it.id }
         repo.applyBatchOdometer(orderedIds, initial)
+        exitSelection()
+    }
+
+    /** Deletes every currently selected trip (and its track points, via cascade). */
+    fun deleteSelected() = viewModelScope.launch {
+        repo.deleteTrips(_selection.value.toList())
         exitSelection()
     }
 

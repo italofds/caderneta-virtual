@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -18,8 +20,14 @@ android {
 
         vectorDrawables { useSupportLibrary = true }
 
-        // Read the Maps key from gradle.properties / local.properties.
-        val mapsKey = (project.findProperty("MAPS_API_KEY") as String?) ?: "YOUR_MAPS_API_KEY_HERE"
+        // Read the Maps key from local.properties, falling back to gradle.properties.
+        val localProperties = Properties().apply {
+            val f = rootProject.file("local.properties")
+            if (f.exists()) f.inputStream().use { load(it) }
+        }
+        val mapsKey = localProperties.getProperty("MAPS_API_KEY")
+            ?: (project.findProperty("MAPS_API_KEY") as String?)
+            ?: "YOUR_MAPS_API_KEY_HERE"
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey
     }
 

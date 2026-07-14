@@ -1,11 +1,14 @@
 package com.caderneta.virtual.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -120,6 +123,16 @@ fun TripListScreen(vm: MainViewModel, onOpen: (Long) -> Unit, onSettings: () -> 
     val selection by vm.selection.collectAsState()
     val active by vm.activeTrip.collectAsState()
     val enabled = devices.filter { it.enabled }
+    val listState = rememberLazyListState()
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    // Keep the scroll position pinned to the last (most recent) entries: whenever
+    // the number of items laid out changes — new trip, filter/group toggle, first
+    // load — jump/animate down to the bottom of the list.
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.totalItemsCount }
+            .collect { count -> if (count > 0) listState.animateScrollToItem(count - 1) }
+    }
 
     Scaffold(
         topBar = {
@@ -130,6 +143,9 @@ fun TripListScreen(vm: MainViewModel, onOpen: (Long) -> Unit, onSettings: () -> 
                     actions = {
                         TextButton(onClick = { if (selection.isNotEmpty()) onBatch() }, enabled = selection.isNotEmpty()) {
                             Icon(Icons.Default.Speed, null); Spacer(Modifier.width(4.dp)); Text("Odômetro")
+                        }
+                        IconButton(onClick = { showDeleteConfirm = true }, enabled = selection.isNotEmpty()) {
+                            Icon(Icons.Default.Delete, "Excluir")
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -162,7 +178,11 @@ fun TripListScreen(vm: MainViewModel, onOpen: (Long) -> Unit, onSettings: () -> 
                 }
             }
 
-            LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(
+                Modifier.weight(1f).padding(horizontal = 16.dp),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 if (active != null) item {
                     RecordingBanner(active!!) { onOpen(active!!.id) }
                 }
@@ -181,9 +201,14 @@ fun TripListScreen(vm: MainViewModel, onOpen: (Long) -> Unit, onSettings: () -> 
                             }
                         }
                         item(key = t.id) {
-                            TripCard(t, selMode, t.id in selection) {
-                                if (selMode) vm.toggleSelected(t.id) else onOpen(t.id)
-                            }
+                            TripCard(
+                                t, selMode, t.id in selection,
+                                onClick = { if (selMode) vm.toggleSelected(t.id) else onOpen(t.id) },
+                                onLongClick = {
+                                    if (!selMode) vm.enterSelection()
+                                    vm.toggleSelected(t.id)
+                                },
+                            )
                         }
                     }
                 } else {
@@ -200,6 +225,20 @@ fun TripListScreen(vm: MainViewModel, onOpen: (Long) -> Unit, onSettings: () -> 
                 item { Spacer(Modifier.height(16.dp)) }
             }
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Excluir trajetos") },
+            text = { Text("Excluir ${selection.size} trajeto${if (selection.size == 1) "" else "s"} selecionado${if (selection.size == 1) "" else "s"}? Esta ação não pode ser desfeita.") },
+            confirmButton = {
+                TextButton(onClick = { showDeleteConfirm = false; vm.deleteSelected() }) { Text("Excluir") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
+            },
+        )
     }
 }
 
@@ -231,9 +270,12 @@ private fun KmChip(text: String) {
 @Composable
 private fun Dot(color: Color) = Box(Modifier.size(10.dp).clip(CircleShape).background(color))
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TripCard(t: Trip, selMode: Boolean, selected: Boolean, onClick: () -> Unit) {
-    Surface(onClick = onClick, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface,
+private fun TripCard(t: Trip, selMode: Boolean, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
         Row(Modifier.padding(14.dp)) {
             if (selMode) {

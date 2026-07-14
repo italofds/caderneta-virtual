@@ -192,7 +192,7 @@ fun BatchOdometerScreen(vm: MainViewModel, onDone: () -> Unit) {
         TopAppBar(title = { Text("Odômetro em lote") },
             navigationIcon = { IconButton(onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } })
     }, bottomBar = {
-        Box(Modifier.padding(16.dp)) {
+        Box(Modifier.navigationBarsPadding().padding(16.dp)) {
             Button(onClick = { initial?.let { vm.applyBatchOdometer(it); onDone() } },
                 enabled = initial != null, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                 Text("Aplicar odômetros")
